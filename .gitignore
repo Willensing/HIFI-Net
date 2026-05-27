@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+
+# Dataset
+dataset/
+datasets/
+
+# Logs
+runs/
+logs/
+results/
+
+# IDE
+.vscode/
+.idea/
+
+# System
+.DS_Store
+Thumbs.db
+
+# Model weights
+*.pth
