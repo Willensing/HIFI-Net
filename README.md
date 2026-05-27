@@ -16,7 +16,7 @@ HIFInet/
 ├── config/
 │   └── config.yaml          # 训练与数据相关配置（主要修改入口）
 ├── dataloader/
-│   └── myLoader.py          # 数据集与 DataLoader
+│   └── myLoader.py          # 数据集加载器
 ├── model/
 │   ├── model.py             # HIFI 主模型
 │   ├── aspp.py
