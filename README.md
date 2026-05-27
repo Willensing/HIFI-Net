@@ -1,0 +1,222 @@
+# HIFINet
+
+基于深度学习的显著性区域认知篡改检测网络（HIFI）。模型同时预测篡改掩码与边缘，并在训练中使用多尺度对比学习损失（MCRS）。
+
+本文使用的U2Net权重和最终训练的权重在百度网盘中获取：
+通过网盘分享的文件：HIFI权重文件
+链接: https://pan.baidu.com/s/1jwi5FOSaBUl0UHiN3I2MaQ?pwd=sn78 提取码: sn78
+
+GitHub:
+https://github.com/Willensing/HIFI-Net
+
+## 项目结构
+
+```
+HIFInet/
+├── config/
+│   └── config.yaml          # 训练与数据相关配置（主要修改入口）
+├── dataloader/
+│   └── myLoader.py          # 数据集与 DataLoader
+├── model/
+│   ├── model.py             # HIFI 主模型
+│   ├── aspp.py
+│   └── srm.py
+├── model_U2net/             # U²-Net 骨干相关代码
+├── utils/
+│   └── utils.py             # 指标、对比损失、日志等
+├── trainer.py               # 训练 + 验证循环
+├── evaluate.py              # 独立测试集评估脚本
+└── bestModels/              # 训练保存的最优权重（运行后生成）
+```
+
+## 环境依赖
+
+建议使用 Python 3.8+ 与 CUDA 版 PyTorch。主要依赖包括：
+
+- `torch`、`torchvision`
+- `numpy`、`opencv-python`（`cv2`）
+- `PyYAML`
+- `scikit-learn`
+- `Pillow`
+- `tqdm`
+- `scipy`（模型内部使用）
+
+安装示例：
+
+```bash
+pip install torch torchvision numpy opencv-python pyyaml scikit-learn pillow tqdm scipy
+```
+
+## 配置说明
+
+所有训练相关参数集中在 **`config/config.yaml`**，分为三块：
+
+| 配置块 | 说明 |
+|--------|------|
+| `model_params` | 优化器、学习率、训练轮数、对比损失权重 `con_alpha` |
+| `dataset_params` | 数据路径、batch 大小、输入尺寸、归一化 mean/std |
+| `contrastive_params` | MCRS 对比学习超参（温度、patch 长度等） |
+
+### `model_params`
+
+```yaml
+model_params:
+  optimizer: 'adam'    # 可选 'adam' 或 'sgd'
+  lr: 0.0005
+  epoch: 100
+  con_alpha: 1         # 对比损失总权重
+```
+
+### `dataset_params`（必改）
+
+将下列路径改为你本机数据集目录（建议使用绝对路径，Windows 下可用正斜杠 `/`）：
+
+```yaml
+dataset_params:
+  train_img_dir: 'D:/data/train/images'
+  train_mask_dir: 'D:/data/train/masks'
+  train_edge_dir: 'D:/data/train/edges'
+
+  val_img_dir: 'D:/data/val/images'
+  val_mask_dir: 'D:/data/val/masks'
+  val_edge_dir: 'D:/data/val/edges'
+
+  batch_size: 4
+  im_size: 256
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+```
+
+### `contrastive_params`（可选微调）
+
+```yaml
+contrastive_params:
+  temperature: 0.6
+  p_len: 4
+  in_out_weight: 0.3
+  reliable_thresh: 0.05
+  gamma: 2.0
+```
+
+### 独立评估脚本配置
+
+`evaluate.py` 顶部需单独修改（不读取 yaml 中的测试路径）：
+
+- `CONFIG_PATH`：配置文件路径
+- `MODEL_PATH`：待加载的 `.pth` 权重
+- `IMAGE_FOLDER` / `MASK_FOLDER`：测试图像与 GT 掩码目录
+
+---
+
+## 数据格式要求
+
+数据加载逻辑见 `dataloader/myLoader.py`。每个划分（训练 / 验证）需要 **三个平行目录**：
+
+| 目录配置项 | 内容 |
+|------------|------|
+| `*_img_dir` | 原始 RGB 图像 |
+| `*_mask_dir` | 篡改区域二值/灰度掩码（与图像同名） |
+| `*_edge_dir` | 篡改区域边缘掩码（与图像同名） |
+
+### 文件命名规则
+
+1. **图像文件名必须以 `img` 开头**（例如 `img001.png`、`img_0001.jpg`）。加载器通过 `f.startswith("img")` 过滤。
+2. **掩码与边缘图与图像主文件名一致**，仅扩展名可不同。支持的扩展名：`png`、`PNG`、`tif`、`TIF`、`jpg`、`JPG`。
+3. 三个目录中样本按文件名一一对应；若某张图找不到 mask 或 edge，启动时会打印缺失列表。
+
+示例目录结构：
+
+```
+train/
+├── images/
+│   ├── img001.png
+│   └── img002.jpg
+├── masks/
+│   ├── img001.png      # 与 images/img001 同名
+│   └── img002.png
+└── edges/
+    ├── img001.png
+    └── img002.png
+```
+
+### 图像与标注格式
+
+| 类型 | 要求 |
+|------|------|
+| 图像 | 常见格式（OpenCV 可读）；读取为 **BGR**；训练时 resize 为 `im_size × im_size`（默认 256），像素缩放到 `[0,1]`，再按 ImageNet `mean/std` 归一化 |
+| 掩码 (`mask`) | **单通道灰度图**；像素值 0–255；resize 使用 `INTER_NEAREST`，再除以 255 得到 `[0,1]` 浮点标签 |
+| 边缘 (`edge`) | 与掩码相同格式；用于边缘分支的 `BCEWithLogitsLoss` |
+
+边缘图需事先准备好（例如对二值掩码做形态学梯度或 Canny 等），代码不会从 mask 自动生成 edge。
+
+### 验证集评估时的掩码（`evaluate.py`）
+
+- 使用 PIL 读取为灰度，resize 到 256×256；
+- **大于 127 的像素视为篡改区域（1）**，否则为背景（0）；
+- 图像与掩码文件列表按 `sorted(os.listdir(...))` 对齐，**数量必须相同且顺序一一对应**（按排序后的文件名配对，而非按 basename 查找）。
+
+---
+
+## 训练与验证
+
+### 训练
+
+1. 按上文准备好数据并填写 `config/config.yaml`。
+2. 在项目根目录执行：
+
+```bash
+python trainer.py
+```
+
+### 训练过程说明
+
+- 每个 epoch：先在训练集上前向 + 反向，再在验证集上评估（无梯度）。
+- 损失包括：主分割、边缘、三个辅助分割头，以及三层特征的 MCRS 对比损失。
+- 学习率：每 20 个 epoch 乘以 0.8（`StepLR`）。
+- 验证指标：**IoU**、**AUC**（对每张图取正类/反类 AUC 的较大值再平均）。
+- 最优权重保存到 `bestModels/`：
+  - `model_best_auc_epoch{N}.pth` — 验证 AUC 最高
+  - `model_best_iou_epoch{N}.pth` — 验证 IoU 最高
+
+### 训练日志
+
+`utils/utils.py` 中 `write_logger` 将日志写入固定路径 `home/user1/HIFI-Net/results/`。若在本机无此目录，请修改 `write_logger` 中的路径，或手动创建对应目录，否则可能无法写入日志。
+
+### 独立测试评估
+
+1. 修改 `evaluate.py` 中的 `MODEL_PATH`、`IMAGE_FOLDER`、`MASK_FOLDER`。
+2. 运行：
+
+```bash
+python evaluate.py
+```
+
+脚本对每张图输出 AUC、F1、IoU、Dice、Recall、Precision、Exact Match、MAE，并在最后打印全集平均值。输入图像经与训练相同的尺寸与归一化；预测掩码经 sigmoid 后以 0.5 二值化。
+
+> **说明**：`evaluate.py` 默认 `MODEL_PATH` 为 `bestModels\best_HIFI.pth`，训练脚本实际保存的文件名为 `model_best_auc_epoch*.pth` / `model_best_iou_epoch*.pth`，使用时请将路径改为实际权重文件，或复制/重命名为 `best_HIFI.pth`。
+
+---
+
+## 常见问题
+
+1. **`FileNotFoundError: Image/Mask/Edge file not found`**  
+   检查 yaml 路径、文件名是否以 `img` 开头、mask/edge 是否与图像 basename 一致。
+
+2. **验证集 AUC 报错 “single-class”**  
+   某张 GT 掩码全为背景或全为篡改，无法计算 ROC-AUC；`evaluate.py` 会跳过并计数。
+
+3. **Windows 路径**  
+   `trainer.py` 中配置路径为 `config\config.yaml`，在 Linux 下可改为 `config/config.yaml`。
+
+4. **GPU**  
+   默认使用 `cuda:0`；无 GPU 时自动回退 CPU（速度较慢）。
+
+---
+
+## 快速检查清单
+
+- [ ] `config/config.yaml` 中 6 个数据目录已填写且存在  
+- [ ] 图像名以 `img` 开头，mask/edge 同名可匹配  
+- [ ] 已安装 PyTorch 与上述依赖  
+- [ ] 边缘标注目录已准备  
+- [ ] 评估时 `evaluate.py` 路径与权重文件名已对齐  
