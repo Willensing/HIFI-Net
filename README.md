@@ -1,75 +1,87 @@
-# HIFINet
+# HIFI-Net
 
-基于深度学习的显著性区域认知篡改检测网络（HIFI）。模型同时预测篡改掩码与边缘，并在训练中使用多尺度对比学习损失（MCRS）。
+HIFI-Net is a deep learning network for saliency-aware semantic image manipulation localization. The model jointly predicts manipulation masks and boundaries and uses the Multi-Cue Relationship Suppression (MCRS) loss during training.
 
-本文使用的U2Net权重和最终训练的权重在百度网盘中获取：
-通过网盘分享的文件：HIFI权重文件
-链接: https://pan.baidu.com/s/1jwi5FOSaBUl0UHiN3I2MaQ?pwd=sn78 提取码: sn78
+## Pretrained Weights
 
-GitHub:
-https://github.com/Willensing/HIFI-Net
+The pretrained U2-Net weights and the final trained HIFI-Net weights are available through Baidu Netdisk:
 
-## 项目结构
+- Files: HIFI weight files
+- Link: https://pan.baidu.com/s/1jwi5FOSaBUl0UHiN3I2MaQ?pwd=sn78
+- Extraction code: `sn78`
 
-```
+## SML Dataset
+
+The Semantic Manipulation Localization (SML) dataset used in our experiments is available through Baidu Netdisk:
+
+- Files: SML dataset
+- Link: https://pan.baidu.com/s/16_posYGRuTp5GDgrKv7H8g?pwd=tisz
+- Extraction code: `tisz`
+
+Repository: https://github.com/Willensing/HIFI-Net
+
+## Project Structure
+
+```text
 HIFInet/
 ├── config/
-│   └── config.yaml          # 训练与数据相关配置（主要修改入口）
+│   └── config.yaml          # Main configuration file for training and data paths
 ├── dataloader/
-│   └── myLoader.py          # 数据集加载器
+│   └── myLoader.py          # Dataset and DataLoader implementation
 ├── model/
-│   ├── model.py             # HIFI 主模型
+│   ├── model.py             # Main HIFI-Net model
 │   ├── aspp.py
 │   └── srm.py
-├── model_U2net/             # U²-Net 骨干相关代码
+├── model_U2net/             # U2-Net backbone-related code
 ├── utils/
-│   └── utils.py             # 指标、对比损失、日志等
-├── trainer.py               # 训练 + 验证循环
-├── evaluate.py              # 独立测试集评估脚本
-└── bestModels/              # 训练保存的最优权重（运行后生成）
+│   └── utils.py             # Metrics, contrastive loss, logging, and utilities
+├── trainer.py               # Training and validation loop
+├── evaluate.py              # Standalone test-set evaluation script
+└── bestModels/              # Best checkpoints generated during training
 ```
 
-## 环境依赖
+## Requirements
 
-建议使用 Python 3.8+ 与 CUDA 版 PyTorch。主要依赖包括：
+Python 3.8 or later and a CUDA-enabled version of PyTorch are recommended. The main dependencies are:
 
-- `torch`、`torchvision`
-- `numpy`、`opencv-python`（`cv2`）
+- `torch` and `torchvision`
+- `numpy`
+- `opencv-python` (`cv2`)
 - `PyYAML`
 - `scikit-learn`
 - `Pillow`
 - `tqdm`
-- `scipy`（模型内部使用）
+- `scipy`
 
-安装示例：
+Example installation command:
 
 ```bash
 pip install torch torchvision numpy opencv-python pyyaml scikit-learn pillow tqdm scipy
 ```
 
-## 配置说明
+## Configuration
 
-所有训练相关参数集中在 **`config/config.yaml`**，分为三块：
+All training-related parameters are defined in `config/config.yaml`. The configuration contains three main sections:
 
-| 配置块 | 说明 |
-|--------|------|
-| `model_params` | 优化器、学习率、训练轮数、对比损失权重 `con_alpha` |
-| `dataset_params` | 数据路径、batch 大小、输入尺寸、归一化 mean/std |
-| `contrastive_params` | MCRS 对比学习超参（温度、patch 长度等） |
+| Section | Description |
+|---|---|
+| `model_params` | Optimizer, learning rate, number of epochs, and the MCRS loss weight `con_alpha` |
+| `dataset_params` | Dataset paths, batch size, input size, and normalization mean and standard deviation |
+| `contrastive_params` | MCRS hyperparameters, including temperature and patch length |
 
 ### `model_params`
 
 ```yaml
 model_params:
-  optimizer: 'adam'    # 可选 'adam' 或 'sgd'
+  optimizer: 'adam'    # Supported options: 'adam' or 'sgd'
   lr: 0.0005
   epoch: 100
-  con_alpha: 1         # 对比损失总权重
+  con_alpha: 1         # Overall weight of the contrastive loss
 ```
 
-### `dataset_params`（必改）
+### `dataset_params` (Required)
 
-将下列路径改为你本机数据集目录（建议使用绝对路径，Windows 下可用正斜杠 `/`）：
+Replace the following paths with the corresponding dataset directories on your machine. Absolute paths are recommended. On Windows, forward slashes `/` can be used in paths.
 
 ```yaml
 dataset_params:
@@ -87,7 +99,7 @@ dataset_params:
   std: [0.229, 0.224, 0.225]
 ```
 
-### `contrastive_params`（可选微调）
+### `contrastive_params` (Optional)
 
 ```yaml
 contrastive_params:
@@ -98,125 +110,122 @@ contrastive_params:
   gamma: 2.0
 ```
 
-### 独立评估脚本配置
+### Standalone Evaluation Configuration
 
-`evaluate.py` 顶部需单独修改（不读取 yaml 中的测试路径）：
+The paths used by `evaluate.py` must be configured directly at the beginning of the script because the test paths are not read from the YAML file:
 
-- `CONFIG_PATH`：配置文件路径
-- `MODEL_PATH`：待加载的 `.pth` 权重
-- `IMAGE_FOLDER` / `MASK_FOLDER`：测试图像与 GT 掩码目录
+- `CONFIG_PATH`: path to the configuration file
+- `MODEL_PATH`: path to the `.pth` checkpoint
+- `IMAGE_FOLDER`: directory containing the test images
+- `MASK_FOLDER`: directory containing the ground-truth test masks
 
----
+## Data Format
 
-## 数据格式要求
+The data-loading logic is implemented in `dataloader/myLoader.py`. Each training or validation split requires three parallel directories:
 
-数据加载逻辑见 `dataloader/myLoader.py`。每个划分（训练 / 验证）需要 **三个平行目录**：
+| Configuration entry | Contents |
+|---|---|
+| `*_img_dir` | Original RGB images |
+| `*_mask_dir` | Binary or grayscale manipulation masks with matching filenames |
+| `*_edge_dir` | Manipulation boundary masks with matching filenames |
 
-| 目录配置项 | 内容 |
-|------------|------|
-| `*_img_dir` | 原始 RGB 图像 |
-| `*_mask_dir` | 篡改区域二值/灰度掩码（与图像同名） |
-| `*_edge_dir` | 篡改区域边缘掩码（与图像同名） |
+### File Naming Rules
 
-### 文件命名规则
+1. Image filenames must begin with `img`, for example, `img001.png` or `img_0001.jpg`. The loader filters files using `f.startswith("img")`.
+2. Each mask and edge map must have the same base filename as its corresponding image, although the file extensions may differ. Supported extensions are `png`, `PNG`, `tif`, `TIF`, `jpg`, and `JPG`.
+3. Samples in the image, mask, and edge directories must have one-to-one correspondence. At startup, the loader prints a list of any missing masks or edge maps.
 
-1. **图像文件名必须以 `img` 开头**（例如 `img001.png`、`img_0001.jpg`）。加载器通过 `f.startswith("img")` 过滤。
-2. **掩码与边缘图与图像主文件名一致**，仅扩展名可不同。支持的扩展名：`png`、`PNG`、`tif`、`TIF`、`jpg`、`JPG`。
-3. 三个目录中样本按文件名一一对应；若某张图找不到 mask 或 edge，启动时会打印缺失列表。
+Example directory structure:
 
-示例目录结构：
-
-```
+```text
 train/
 ├── images/
 │   ├── img001.png
 │   └── img002.jpg
 ├── masks/
-│   ├── img001.png      # 与 images/img001 同名
+│   ├── img001.png
 │   └── img002.png
 └── edges/
     ├── img001.png
     └── img002.png
 ```
 
-### 图像与标注格式
+### Image and Annotation Formats
 
-| 类型 | 要求 |
-|------|------|
-| 图像 | 常见格式（OpenCV 可读）；读取为 **BGR**；训练时 resize 为 `im_size × im_size`（默认 256），像素缩放到 `[0,1]`，再按 ImageNet `mean/std` 归一化 |
-| 掩码 (`mask`) | **单通道灰度图**；像素值 0–255；resize 使用 `INTER_NEAREST`，再除以 255 得到 `[0,1]` 浮点标签 |
-| 边缘 (`edge`) | 与掩码相同格式；用于边缘分支的 `BCEWithLogitsLoss` |
+| Type | Requirements |
+|---|---|
+| Image | Any common OpenCV-readable format. Images are loaded in BGR order, resized to `im_size x im_size` (256 by default), scaled to `[0,1]`, and normalized using the ImageNet mean and standard deviation. |
+| Mask | Single-channel grayscale image with values in the range 0-255. Masks are resized using `INTER_NEAREST` and divided by 255 to obtain floating-point labels in `[0,1]`. |
+| Edge map | Same format as the manipulation mask. Edge maps are used by the boundary branch with `BCEWithLogitsLoss`. |
 
-边缘图需事先准备好（例如对二值掩码做形态学梯度或 Canny 等），代码不会从 mask 自动生成 edge。
+Edge maps must be prepared in advance, for example, by applying a morphological gradient or an edge detector to the binary manipulation masks. The training code does not automatically generate edge maps from the masks.
 
-### 验证集评估时的掩码（`evaluate.py`）
+### Test Masks in `evaluate.py`
 
-- 使用 PIL 读取为灰度，resize 到 256×256；
-- **大于 127 的像素视为篡改区域（1）**，否则为背景（0）；
-- 图像与掩码文件列表按 `sorted(os.listdir(...))` 对齐，**数量必须相同且顺序一一对应**（按排序后的文件名配对，而非按 basename 查找）。
+- Masks are loaded as grayscale images using Pillow and resized to 256 x 256.
+- Pixels greater than 127 are treated as manipulated pixels (`1`); all other pixels are treated as background (`0`).
+- Image and mask lists are aligned using `sorted(os.listdir(...))`. Their lengths must match, and their sorted orders must correspond exactly. The script does not match files by their base filenames.
 
----
+## Training and Evaluation
 
-## 训练与验证
+### Training
 
-### 训练
-
-1. 按上文准备好数据并填写 `config/config.yaml`。
-2. 在项目根目录执行：
+1. Prepare the dataset and update the paths in `config/config.yaml`.
+2. Run the following command from the project root:
 
 ```bash
 python trainer.py
 ```
 
-### 训练过程说明
+### Training Procedure
 
-- 每个 epoch：先在训练集上前向 + 反向，再在验证集上评估（无梯度）。
-- 损失包括：主分割、边缘、三个辅助分割头，以及三层特征的 MCRS 对比损失。
-- 学习率：每 20 个 epoch 乘以 0.8（`StepLR`）。
-- 验证指标：**IoU**、**AUC**（对每张图取正类/反类 AUC 的较大值再平均）。
-- 最优权重保存到 `bestModels/`：
-  - `model_best_auc_epoch{N}.pth` — 验证 AUC 最高
-  - `model_best_iou_epoch{N}.pth` — 验证 IoU 最高
+- During each epoch, the model is first optimized on the training set and then evaluated on the validation set without gradient computation.
+- The objective includes the main segmentation loss, boundary loss, three auxiliary segmentation losses, and the MCRS contrastive losses computed from three feature levels.
+- The learning rate is multiplied by 0.8 every 20 epochs using `StepLR`.
+- Validation metrics include IoU and AUC. For each image, the larger value of the positive-class and negative-class AUCs is used before dataset-level averaging.
+- The best checkpoints are saved in `bestModels/`:
+  - `model_best_auc_epoch{N}.pth`: checkpoint with the highest validation AUC
+  - `model_best_iou_epoch{N}.pth`: checkpoint with the highest validation IoU
 
-### 训练日志
+### Training Logs
 
-`utils/utils.py` 中 `write_logger` 将日志写入固定路径 `home/user1/HIFI-Net/results/`。若在本机无此目录，请修改 `write_logger` 中的路径，或手动创建对应目录，否则可能无法写入日志。
+The `write_logger` function in `utils/utils.py` writes logs to the fixed path `home/user1/HIFI-Net/results/`. If this directory does not exist on your machine, update the path in `write_logger` or create the directory manually; otherwise, log writing may fail.
 
-### 独立测试评估
+### Standalone Test Evaluation
 
-1. 修改 `evaluate.py` 中的 `MODEL_PATH`、`IMAGE_FOLDER`、`MASK_FOLDER`。
-2. 运行：
+1. Update `MODEL_PATH`, `IMAGE_FOLDER`, and `MASK_FOLDER` in `evaluate.py`.
+2. Run:
 
 ```bash
 python evaluate.py
 ```
 
-脚本对每张图输出 AUC、F1、IoU、Dice、Recall、Precision、Exact Match、MAE，并在最后打印全集平均值。输入图像经与训练相同的尺寸与归一化；预测掩码经 sigmoid 后以 0.5 二值化。
+For each image, the script reports AUC, F1-score, IoU, Dice, recall, precision, exact match, and MAE. It then prints the dataset-level average of each metric. Input images use the same size and normalization settings as the training data. Predicted masks are converted to probabilities using the sigmoid function and binarized using a threshold of 0.5.
 
-> **说明**：`evaluate.py` 默认 `MODEL_PATH` 为 `bestModels\best_HIFI.pth`，训练脚本实际保存的文件名为 `model_best_auc_epoch*.pth` / `model_best_iou_epoch*.pth`，使用时请将路径改为实际权重文件，或复制/重命名为 `best_HIFI.pth`。
+> **Note:** The default `MODEL_PATH` in `evaluate.py` is `bestModels\best_HIFI.pth`, whereas the training script saves checkpoints as `model_best_auc_epoch*.pth` or `model_best_iou_epoch*.pth`. Update the path to the actual checkpoint or copy and rename the selected checkpoint to `best_HIFI.pth` before evaluation.
 
----
+## Troubleshooting
 
-## 常见问题
+### `FileNotFoundError: Image/Mask/Edge file not found`
 
-1. **`FileNotFoundError: Image/Mask/Edge file not found`**  
-   检查 yaml 路径、文件名是否以 `img` 开头、mask/edge 是否与图像 basename 一致。
+Check the paths in the YAML file, verify that image filenames begin with `img`, and ensure that every mask and edge map has the same base filename as its corresponding image.
 
-2. **验证集 AUC 报错 “single-class”**  
-   某张 GT 掩码全为背景或全为篡改，无法计算 ROC-AUC；`evaluate.py` 会跳过并计数。
+### Single-class AUC error on the validation or test set
 
-3. **Windows 路径**  
-   `trainer.py` 中配置路径为 `config\config.yaml`，在 Linux 下可改为 `config/config.yaml`。
+A ground-truth mask containing only background pixels or only manipulated pixels does not define an ROC curve. `evaluate.py` skips these samples when calculating AUC and reports how many samples were skipped.
 
-4. **GPU**  
-   默认使用 `cuda:0`；无 GPU 时自动回退 CPU（速度较慢）。
+### Windows paths
 
----
+The configuration path in `trainer.py` uses `config\config.yaml`. On Linux, change it to `config/config.yaml` if necessary.
 
-## 快速检查清单
+### GPU selection
 
-- [ ] `config/config.yaml` 中 6 个数据目录已填写且存在  
-- [ ] 图像名以 `img` 开头，mask/edge 同名可匹配  
-- [ ] 已安装 PyTorch 与上述依赖  
-- [ ] 边缘标注目录已准备  
-- [ ] 评估时 `evaluate.py` 路径与权重文件名已对齐  
+The default device is `cuda:0`. If no compatible GPU is available, the code automatically falls back to the CPU, which will be considerably slower.
+
+## Quick Checklist
+
+- [ ] All six dataset directories in `config/config.yaml` are configured and exist.
+- [ ] Image filenames begin with `img`, and all masks and edge maps can be matched by base filename.
+- [ ] PyTorch and the required dependencies are installed.
+- [ ] The edge-map directories have been prepared.
+- [ ] The paths and checkpoint filename in `evaluate.py` are correct.
